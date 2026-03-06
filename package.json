@@ -1,0 +1,80 @@
+{
+  "name": "serverless-aws-mcp",
+  "version": "1.0.0",
+  "description": "A reusable serverless project template using hexagonal architecture",
+  "main": "src/index.ts",
+  "files": [
+    "dist/**",
+    "package.json",
+    "package-lock.json",
+    "src/**"
+  ],
+  "scripts": {
+    "prepare": "husky install || true",
+    "build": "npm run build:compile",
+    "build:compile": "tsc",
+    "build:test": "tsc --project tsconfig.test.json",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:integration": "jest test/integration --verbose --runInBand",
+    "test:unit": "jest test/unit --verbose --runInBand",
+    "lint": "eslint . --ext .ts,.tsx",
+    "lint:fix": "eslint . --ext .ts,.tsx --fix",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf node_modules dist dist-test",
+    "sam:build": "npm run build && sam build",
+    "sam:deploy:ephemeral": "sam deploy --config-env ephemeral --stack-name sam-typescript-webhook-template-${STACK_SUFFIX} --s3-prefix sam-typescript-webhook-template-${STACK_SUFFIX}",
+    "sam:deploy:dev": "sam deploy --config-env dev",
+    "sam:deploy:staging": "sam deploy --config-env staging",
+    "sam:deploy:prod": "sam deploy --config-env prod",
+    "sam:delete:ephemeral": "sam delete --config-env ephemeral --stack-name sam-typescript-webhook-template-${STACK_SUFFIX} --s3-prefix sam-typescript-webhook-template-${STACK_SUFFIX}",
+    "sam:delete:dev": "sam delete --config-env dev",
+    "sam:delete:staging": "sam delete --config-env staging",
+    "sam:delete:prod": "sam delete --config-env prod",
+    "sam:local": "sam local start-api",
+    "sam:plan": "sam deploy --no-execute-changeset"
+  },
+  "dependencies": {
+    "@aws-sdk/client-api-gateway": "^3.926.0",
+    "@aws-sdk/client-sqs": "^3.0.0",
+    "@aws-sdk/client-ssm": "^3.926.0",
+    "@commercetools/platform-sdk": "^7.14.0",
+    "@contentstack/delivery-sdk": "^4.3.0",
+    "@google/generative-ai": "^0.24.1",
+    "@modelcontextprotocol/sdk": "^1.20.0",
+    "axios": "^1.0.0",
+    "esbuild": "^0.27.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.23.0",
+    "@babel/preset-env": "^7.23.0",
+    "@eslint/js": "^9.39.1",
+    "@types/aws-lambda": "^8.10.0",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^20.19.33",
+    "@types/ssh2-sftp-client": "^9.0.4",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "babel-jest": "^29.7.0",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.29.1",
+    "eslint-plugin-prettier": "^5.1.3",
+    "globals": "^16.5.0",
+    "husky": "^9.1.7",
+    "jest": "^29.5.0",
+    "lint-staged": "^16.1.2",
+    "prettier": "^3.2.5",
+    "ts-jest": "^29.1.0",
+    "tsarch": "^5.4.1",
+    "typescript": "^5.0.0",
+    "typescript-eslint": "^8.46.3"
+  },
+  "lint-staged": {
+    "*.{js,ts,tsx}": [
+      "npm run lint:fix"
+    ]
+  }
+}

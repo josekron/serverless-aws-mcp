@@ -1,0 +1,154 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Datadog Monitoring Stack for Webhook Processing Service
+
+Parameters:
+  Environment:
+    Type: String
+    Description: Environment name
+  StackName:
+    Type: String
+    Description: Name of the parent stack for resource naming
+  Domain:
+    Type: String
+    Description: Domain for resource tagging
+  ServiceName:
+    Type: String
+    Description: Service name for resource tagging
+
+Resources:
+  InvocationErrorMonitor:
+    Type: Datadog::Monitors::Monitor
+    Properties:
+      Type: metric alert
+      Query: !Sub 'sum(last_1h):sum:aws.lambda.errors{env:${Environment},functionname:${StackName}*} by {functionname}.as_count()  > 0'
+      Name: !Sub "${StackName}-invocation-errors"
+      Multi: true
+      ##Message: !Sub "@slack-channel-name-{Environment} temporal event handler service errors logged"
+      Options:
+        TimeoutH: 1
+      Tags: 
+        - !Sub "environment:${Environment}"
+        - !Sub "env:${Environment}"
+        - !Sub "DOMAIN:${Domain}"
+        - !Sub "SERVICE:${ServiceName}"
+
+  ErrorLogsMonitor:
+    Type: Datadog::Monitors::Monitor
+    Properties:
+      Type: "log alert"
+      Query: !Sub 'logs("env:${Environment} status:error functionname:${StackName}*").index("*").rollup("count").by("functionname").last("5m") > 0'
+      Name: !Sub "${StackName}-logs"
+      Multi: true
+      ##Message: !Sub "@slack-channel-name-{Environment} temporal event handler service errors logged"
+      Options:
+        TimeoutH: 1
+      Tags: 
+        - !Sub "environment:${Environment}"
+        - !Sub "env:${Environment}"
+        - !Sub "DOMAIN:${Domain}"
+        - !Sub "SERVICE:${ServiceName}"
+
+  DLQMessagesMonitor:
+    Type: Datadog::Monitors::Monitor
+    Properties:
+      Type: "metric alert"
+      Query: !Sub 'avg(last_5m):avg:aws.sqs.approximate_number_of_visible_messages{env:${Environment},queuename:${StackName}-webhook-dlq} > 0'
+      Name: !Sub "${StackName}-dlq-messages"
+      Multi: false
+      ##Message: !Sub "@slack-channel-name-{Environment} Messages detected in dead letter queue - failed webhook processing"
+      Options:
+        TimeoutH: 1
+        NotifyAudit: false
+        NotifyNoData: false
+        RenotifyInterval: 60
+      Tags: 
+        - !Sub "environment:${Environment}"
+        - !Sub "env:${Environment}"
+        - !Sub "DOMAIN:${Domain}"
+        - !Sub "SERVICE:${ServiceName}"
+
+  DLQMessageAgeMonitor:
+    Type: Datadog::Monitors::Monitor
+    Properties:
+      Type: "metric alert"
+      Query: !Sub 'avg(last_5m):avg:aws.sqs.approximate_age_of_oldest_message{env:${Environment},queuename:${StackName}-webhook-dlq} > 3600'
+      Name: !Sub "${StackName}-dlq-message-age"
+      Multi: false
+      ##Message: !Sub "@slack-channel-name-{Environment} Old messages detected in dead letter queue - may need manual intervention"
+      Options:
+        TimeoutH: 1
+        NotifyAudit: false
+        NotifyNoData: false
+        RenotifyInterval: 240
+      Tags: 
+        - !Sub "environment:${Environment}"
+        - !Sub "env:${Environment}"
+        - !Sub "DOMAIN:${Domain}"
+        - !Sub "SERVICE:${ServiceName}"
+
+  ApiGateway4xxErrorMonitor:
+    Type: Datadog::Monitors::Monitor
+    Properties:
+      Type: "metric alert"
+      Query: !Sub 'sum(last_5m):sum:aws.apigateway.4xxerror{env:${Environment},apiname:${StackName}*}.as_count() > 10'
+      Name: !Sub "${StackName}-4xx-errors"
+      Multi: false
+      ##Message: !Sub "@slack-channel-name-{Environment} High number of 4xx client errors detected in API Gateway"
+      Options:
+        TimeoutH: 1
+        NotifyAudit: false
+        NotifyNoData: false
+        RenotifyInterval: 60
+      Tags: 
+        - !Sub "environment:${Environment}"
+        - !Sub "env:${Environment}"
+        - !Sub "DOMAIN:${Domain}"
+        - !Sub "SERVICE:${ServiceName}"
+
+  ApiGateway5xxErrorMonitor:
+    Type: Datadog::Monitors::Monitor
+    Properties:
+      Type: "metric alert"
+      Query: !Sub 'sum(last_5m):sum:aws.apigateway.5xxerror{env:${Environment},apiname:${StackName}*}.as_count() > 0'
+      Name: !Sub "${StackName}-5xx-errors"
+      Multi: false
+      ##Message: !Sub "@slack-channel-name-{Environment} Server errors detected in API Gateway - immediate attention required"
+      Options:
+        TimeoutH: 1
+        NotifyAudit: false
+        NotifyNoData: false
+        RenotifyInterval: 30
+      Tags: 
+        - !Sub "environment:${Environment}"
+        - !Sub "env:${Environment}"
+        - !Sub "DOMAIN:${Domain}"
+        - !Sub "SERVICE:${ServiceName}"
+
+Outputs:
+  MonitoringStackId:
+    Description: Monitoring stack identifier
+    Value: !Ref "AWS::StackId"
+  
+  InvocationErrorMonitorId:
+    Description: Lambda invocation error monitor ID
+    Value: !Ref InvocationErrorMonitor
+    
+  ErrorLogsMonitorId:
+    Description: Error logs monitor ID
+    Value: !Ref ErrorLogsMonitor
+    
+  DLQMessagesMonitorId:
+    Description: DLQ messages monitor ID
+    Value: !Ref DLQMessagesMonitor
+    
+  DLQMessageAgeMonitorId:
+    Description: DLQ message age monitor ID
+    Value: !Ref DLQMessageAgeMonitor
+    
+  ApiGateway4xxErrorMonitorId:
+    Description: API Gateway 4xx error monitor ID
+    Value: !Ref ApiGateway4xxErrorMonitor
+    
+  ApiGateway5xxErrorMonitorId:
+    Description: API Gateway 5xx error monitor ID
+    Value: !Ref ApiGateway5xxErrorMonitor 

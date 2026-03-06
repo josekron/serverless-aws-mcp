@@ -1,0 +1,162 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  serverless-aws-mcp
+
+  Serverless architecture of a MCP Server using AWS Lambda and API Gateway
+
+Parameters:
+  GeminiModel:
+    Type: String
+    Default: "gemini-2.5-flash-lite"
+    Description: "Gemini model to use for AI processing"
+  
+  GeminiApiKey:
+    Type: String
+    Description: "API key for Gemini AI service"
+    NoEcho: true
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 256
+    Runtime: nodejs22.x
+    Architectures:
+      - x86_64
+
+Resources:
+  # API Key for authentication
+  MCPServerApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    Properties:
+      Name: MCP-Server-API-Key
+      Description: API Key for MCP Server authentication
+      Enabled: true
+
+  # Custom resource Lambda to retrieve and store API key value
+  GetApiKeyValueFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./
+      Handler: dist/infrastructure/customResources/getApiKeyValue.handler
+      Description: Custom resource to retrieve API key value and store in Parameter Store
+      Runtime: nodejs22.x
+      Timeout: 30
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - apigateway:GET
+              Resource: !Sub "arn:aws:apigateway:${AWS::Region}::/apikeys/${MCPServerApiKey}"
+            - Effect: Allow
+              Action:
+                - ssm:PutParameter
+                - ssm:GetParameter
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/mcp-server/api-key-value"
+
+  # Custom resource to retrieve API key value after creation
+  GetApiKeyValueResource:
+    Type: Custom::GetApiKeyValue
+    Properties:
+      ServiceToken: !GetAtt GetApiKeyValueFunction.Arn
+      ApiKeyId: !Ref MCPServerApiKey
+      ParameterName: /mcp-server/api-key-value
+
+  MCPServerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./
+      Handler: dist/command/lambda/mcpServer.handler
+      Description: MCP Server - provides tools via Model Context Protocol
+      Environment:
+        Variables:
+          GEMINI_MODEL: !Ref GeminiModel
+          GEMINI_API_KEY: !Ref GeminiApiKey
+      Events:
+        MCPEndpoint:
+          Type: Api
+          Properties:
+            Path: /mcp
+            Method: post
+            Auth:
+              ApiKeyRequired: true
+        MCPOptions:
+          Type: Api
+          Properties:
+            Path: /mcp
+            Method: options
+
+  MCPClientFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./
+      Handler: dist/command/lambda/mcpClient.handler
+      Description: MCP Client - webhook that uses MCP server for image processing
+      Environment:
+        Variables:
+          GEMINI_MODEL: !Ref GeminiModel
+          GEMINI_API_KEY: !Ref GeminiApiKey
+          MCP_API_KEY_PARAMETER_NAME: /mcp-server/api-key-value
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/mcp-server/api-key-value"
+      Events:
+        WebhookEndpoint:
+          Type: Api
+          Properties:
+            Path: /webhook
+            Method: post
+        WebhookOptions:
+          Type: Api
+          Properties:
+            Path: /webhook
+            Method: options
+
+  # Usage Plan for the API Key (must be after API is created)
+  MCPServerUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    DependsOn:
+      - MCPServerFunction
+      - MCPClientFunction
+    Properties:
+      UsagePlanName: MCP-Server-Usage-Plan
+      Description: Usage plan for MCP Server
+      ApiStages:
+        - ApiId: !Ref ServerlessRestApi
+          Stage: !Ref ServerlessRestApiProdStage
+      Throttle:
+        BurstLimit: 100
+        RateLimit: 50
+      Quota:
+        Limit: 10000
+        Period: DAY
+
+  # Link API Key to Usage Plan
+  MCPServerUsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Properties:
+      KeyId: !Ref MCPServerApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref MCPServerUsagePlan
+
+Outputs:
+  MCPServerApiKey:
+    Description: "API Key ID for MCP Server authentication"
+    Value: !Ref MCPServerApiKey
+    Export:
+      Name: !Sub "${AWS::StackName}-MCPServerApiKey"
+  
+  MCPClientWebhookUrl:
+    Description: "Webhook URL for MCP Client"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/webhook"
+    Export:
+      Name: !Sub "${AWS::StackName}-MCPClientWebhookUrl"
+  
+  MCPServerUrl:
+    Description: "MCP Server URL"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/mcp"
+    Export:
+      Name: !Sub "${AWS::StackName}-MCPServerUrl"
