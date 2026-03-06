@@ -1,6 +1,6 @@
 # POC
 
-This is a POC of a service using AI Agents where there is a MCP server and one MCP Client that will interact with the MCP server and external services.
+This is a POC of a service using AI Agents where there is a Model Context Protocol (MCP) server and one MCP Client that will interact with the MCP server and external services.
 
 ## Technologies used
 
