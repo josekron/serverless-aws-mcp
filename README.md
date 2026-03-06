@@ -90,8 +90,6 @@ src/
 
 ### Local Development
 
-**⚠️ Important Limitation**: The full API Gateway → SQS → Lambda flow cannot be tested locally due to SAM CLI limitations. Direct API Gateway → SQS integrations are not supported by `sam local start-api`.
-
 #### What You Can Test Locally
 
 1. **Lambda Function Testing**:
